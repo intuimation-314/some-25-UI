@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Electrons on Strings — Interactive Thomson Relaxation</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+    canvas { display:block; }
+    #controls {
+      position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; z-index: 10;
+      flex-wrap: wrap; align-items: center; max-width: min(860px, 92vw);
+    }
+    .btn { cursor: pointer; border: 1px solid #2a2a2a; background: #111; color: #fff;
+      padding: 8px 12px; border-radius: 10px; font-size: 13px; opacity: .9; text-decoration: none; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .toggle, .chip {
+      display:flex; gap:6px; align-items:center; color:#ddd; background:#111; border:1px solid #2a2a2a;
+      border-radius:10px; padding:6px 10px; font-size:13px;
+    }
+    .toggle input { accent-color:#4cc9f0; }
+    #panel { position: fixed; left: 16px; top: 16px; z-index: 10; display:flex; flex-wrap:wrap; gap:8px; }
+    #panel .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #panel input[type=number]{ width:90px; background:#0b0b0b; color:#fff; border:1px solid #2a2a2a; border-radius:10px; padding:6px 10px; }
+    #panel input[type=range]{ width:180px; }
+    #stats { color:#ddd; font: 13px/1.3 system-ui, Segoe UI, Arial; background:#0b0b0b; border:1px solid #2a2a2a; border-radius:10px; padding:8px 12px; }
+    #hint { color:#aaa; font:12px system-ui; opacity:.8 }
+  </style>
+</head>
+<body>
+  <!-- LEFT: interactive panel -->
+  <div id="panel">
+    <div class="row">
+      <span class="chip">N</span>
+      <input id="nInput" type="number" min="2" max="200" step="1" value="4" />
+      <button id="arrange" class="btn">Arrange</button>
+      <button id="randomize" class="btn">Randomize</button>
+      <button id="pause" class="btn">Pause</button>
+      <label class="toggle"><input id="autoArrange" type="checkbox" /> Auto-arrange on change</label>
+    </div>
+    <div class="row">
+      <span class="chip">Speed</span>
+      <input id="speed" type="range" min="1" max="8" step="1" value="3" title="Relaxation speed"/>
+      <span id="hint">Enter to apply • R to reset camera • Click-drag to orbit</span>
+    </div>
+    <div id="stats">Energy: — | Δmax: — | iter: —</div>
+  </div>
+
+  <!-- RIGHT: visibility + recording -->
+  <div id="controls">
+    <label class="toggle"><input id="toggleElectrons" type="checkbox" checked /> Electrons</label>
+    <label class="toggle"><input id="toggleStrings"  type="checkbox" checked /> Strings</label>
+    <label class="toggle"><input id="toggleArrows"   type="checkbox" checked /> Vector arrows</label>
+    <button id="recStart" class="btn">● Start Recording</button>
+    <button id="recStop" class="btn" disabled>■ Stop & Download</button>
+    <a id="dlLast" class="btn" href="#" download style="display:none">⬇ Download last recording</a>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+    // ===== Boilerplate =====
+    const canvas = document.getElementById('c');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.6, 5.0);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0,0,0);
+
+    const amb = new THREE.AmbientLight(0xffffff, 0.9); scene.add(amb);
+
+    window.addEventListener('resize', ()=>{
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // ===== UI =====
+    const nInput = document.getElementById('nInput');
+    const arrangeBtn = document.getElementById('arrange');
+    const randomizeBtn = document.getElementById('randomize');
+    const pauseBtn = document.getElementById('pause');
+    const autoArrange = document.getElementById('autoArrange');
+    const speedSlider = document.getElementById('speed');
+    const statsEl = document.getElementById('stats');
+
+    let SHOW_ELECTRONS = true, SHOW_STRINGS = true, SHOW_ARROWS = true;
+    const toggleElectrons = document.getElementById('toggleElectrons');
+    const toggleStrings   = document.getElementById('toggleStrings');
+    const toggleArrows    = document.getElementById('toggleArrows');
+    toggleElectrons.addEventListener('change', ()=>{ SHOW_ELECTRONS = toggleElectrons.checked; applyVisibility(); });
+    toggleStrings  .addEventListener('change', ()=>{ SHOW_STRINGS   = toggleStrings.checked;   applyVisibility(); });
+    toggleArrows   .addEventListener('change', ()=>{ SHOW_ARROWS    = toggleArrows.checked;    applyVisibility(); });
+
+    // ===== Helpers =====
+    function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+    function randOnSphere(){
+      // uniform on sphere
+      const u = Math.random()*2-1;           // cos(phi)
+      const t = Math.random()*2*Math.PI;
+      const s = Math.sqrt(1-u*u);
+      return new THREE.Vector3(s*Math.cos(t), s*Math.sin(t), u);
+    }
+    function makeDot(radius=0.18, color=0x4cc9f0){
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 32),
+                            new THREE.MeshBasicMaterial({ color, transparent:true, opacity:1 }));
+    }
+    function makeLine(){ return new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color:0x9aa0a6, transparent:true, opacity:1 })); }
+    function makeLabel(text, scale=1){
+      const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
+      const fs = 120; ctx.font = `${fs}px Inter, Arial, sans-serif`;
+      const m = ctx.measureText(text); cvs.width = Math.ceil(m.width+24); cvs.height = fs+24;
+      ctx.font = `${fs}px Inter, Arial, sans-serif`; ctx.fillStyle = '#fff'; ctx.textBaseline = 'top'; ctx.fillText(text,12,12);
+      const tex = new THREE.CanvasTexture(cvs);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+      spr.scale.set(cvs.width/900*scale, cvs.height/900*scale, 1);
+      return spr;
+    }
+    function makeArrow(color=0xff6d00){
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(), 1, color, 0.28, 0.16);
+      arrow.cone.material.transparent = true; arrow.line.material.transparent = true; return arrow;
+    }
+    function setArrow(arrow, to){
+      const len = to.length(); const dir = to.clone().normalize();
+      arrow.position.set(0,0,0); arrow.setDirection(dir); arrow.setLength(len, 0.28, 0.16);
+    }
+    function setArrowOpacity(arrow, op){
+      if (!arrow) return;
+      if (arrow.cone?.material) arrow.cone.material.opacity = op;
+      if (arrow.line?.material) arrow.line.material.opacity = op;
+    }
+
+    // Center dot
+    const centerDot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 20, 20), new THREE.MeshBasicMaterial({ color: 0x9aa0a6 }));
+    scene.add(centerDot);
+
+    // ===== Electrons state =====
+    const R = 2.0;                          // sphere radius
+    let N = parseInt(nInput.value, 10) || 4;
+    let group = null;
+    let dots = [], lines = [], arrows = [], labels = [];
+    let pos = [];                            // unit vectors (on sphere)
+    let relaxing = false;
+    let iter = 0;
+
+    function clearGroup(){
+      if (group){
+        scene.remove(group);
+        group.traverse(o=>{ o.geometry?.dispose?.(); o.material?.dispose?.(); });
+      }
+      group = new THREE.Group(); scene.add(group);
+      dots = []; lines = []; arrows = []; labels = [];
+    }
+
+    function initElectrons(n, keepPositions=false){
+      N = clamp(n, 2, 200);
+      clearGroup();
+      if (!keepPositions) pos = [];
+      for (let i=0;i<N;i++){
+        if (!keepPositions || !pos[i]) pos[i] = randOnSphere();
+        const p = pos[i].clone().multiplyScalar(R);
+
+        const d = makeDot(); d.position.copy(p); group.add(d); dots.push(d);
+        const l = makeLine(); l.geometry.setFromPoints([new THREE.Vector3(), p]); group.add(l); lines.push(l);
+        const a = makeArrow(); setArrow(a, p); group.add(a); arrows.push(a);
+        const s = makeLabel('e', 0.8); s.position.copy(p); group.add(s); labels.push(s);
+      }
+      applyVisibility();
+      iter = 0;
+      updateStats(energy(), 0);
+    }
+
+    function applyVisibility(){
+      const setVis = (arr, vis)=>{
+        for (const o of arr){
+          if (!o) continue;
+          o.visible = vis;
+          if (o.material && 'opacity' in o.material) o.material.opacity = vis ? 1 : 0;
+          if (o.type === 'ArrowHelper') setArrowOpacity(o, vis ? 1 : 0);
+        }
+      };
+      setVis([...dots, ...labels], SHOW_ELECTRONS);
+      setVis(lines, SHOW_STRINGS);
+      setVis(arrows, SHOW_ARROWS);
+    }
+
+    // ===== Energy + Relaxation (simple Thomson relaxer) =====
+    // Energy E = sum_{i<j} 1/|ri-rj|  (ri = R*ui)
+    function energy(){
+      let E = 0;
+      for (let i=0;i<N;i++){
+        for (let j=i+1;j<N;j++){
+          const ri = pos[i]; const rj = pos[j];
+          const d = ri.clone().sub(rj).length();     // since on unit sphere, distance in 3D
+          E += 1/d;
+        }
+      }
+      // scale by R: actual positions are R*ui → distance = R*d_unit, energy ~ 1/(R*d_unit)
+      return E / R;
+    }
+
+    // Perform k relaxation substeps per frame
+    function relaxStep(k=3){
+      const step = 0.02 * Math.pow(2, (parseInt(speedSlider.value,10)-3));  // tunable step
+      const eps = 1e-6;
+      let maxDisp = 0;
+
+      for (let it=0; it<k; it++){
+        // compute forces
+        const F = Array.from({length:N}, ()=> new THREE.Vector3(0,0,0));
+        for (let i=0;i<N;i++){
+          for (let j=i+1;j<N;j++){
+            // Coulomb-like repulsion on unit sphere
+            const rij = pos[i].clone().sub(pos[j]);
+            const r2 = Math.max(rij.lengthSq(), 1e-8);
+            const invr3 = 1 / Math.pow(r2, 1.5);
+            const f = rij.multiplyScalar(invr3);  // force on i from j
+            F[i].add(f);
+            F[j].sub(f);
+          }
+        }
+        // move along tangent plane and renormalize to unit sphere
+        for (let i=0;i<N;i++){
+          const ui = pos[i];
+          // project force to tangent plane at ui (remove radial component)
+          const radial = ui.clone().multiplyScalar(F[i].dot(ui));
+          const tangential = F[i].clone().sub(radial);
+          const delta = tangential.multiplyScalar(step);
+          ui.add(delta).normalize();
+          maxDisp = Math.max(maxDisp, delta.length());
+        }
+      }
+
+      // update meshes
+      for (let i=0;i<N;i++){
+        const p = pos[i].clone().multiplyScalar(R);
+        dots[i].position.copy(p);
+        labels[i].position.copy(p);
+        lines[i].geometry.setFromPoints([new THREE.Vector3(), p]);
+        setArrow(arrows[i], p);
+      }
+      iter++;
+      updateStats(energy(), maxDisp);
+      // stopping condition
+      return maxDisp < 2e-4;
+    }
+
+    function updateStats(E, dmax){
+      statsEl.textContent = `Energy: ${E.toFixed(6)} | Δmax: ${dmax.toExponential(2)} | iter: ${iter}`;
+    }
+
+    // ===== Wire up UI =====
+    function arrangeNow(){
+      relaxing = true;
+    }
+    function randomize(){
+      for (let i=0;i<N;i++) pos[i] = randOnSphere();
+      initElectrons(N, true);
+    }
+
+    arrangeBtn.addEventListener('click', arrangeNow);
+    randomizeBtn.addEventListener('click', ()=>{ randomize(); if (autoArrange.checked) arrangeNow(); });
+    pauseBtn.addEventListener('click', ()=>{
+      relaxing = !relaxing;
+      pauseBtn.textContent = relaxing ? 'Pause' : 'Resume';
+    });
+
+    nInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ N = parseInt(nInput.value,10); initElectrons(N); if (autoArrange.checked) arrangeNow(); } });
+    nInput.addEventListener('change', ()=>{ N = parseInt(nInput.value,10); initElectrons(N); if (autoArrange.checked) arrangeNow(); });
+
+    window.addEventListener('keydown', (e)=>{
+      if (e.key.toLowerCase()==='r'){ // reset camera
+        controls.target.set(0,0,0);
+        camera.position.set(0,1.6,5.0);
+      }
+    });
+
+    // ===== Start =====
+    initElectrons(N);
+
+    // ===== Animate =====
+    const clock = new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.033);
+      controls.update();
+      if (relaxing){
+        const settled = relaxStep(4); // 4 substeps per frame
+        if (settled) relaxing = false;
+      }
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ===== Recording (WebM via MediaRecorder) =====
+    const recStartBtn = document.getElementById('recStart');
+    const recStopBtn  = document.getElementById('recStop');
+    const dlLast      = document.getElementById('dlLast');
+    let mediaRecorder = null; let chunks = []; let lastUrl = null;
+
+    function getSupportedMime(){
+      const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4;codecs=avc1'];
+      for (const c of candidates){ if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c; }
+      return '';
+    }
+    recStartBtn.addEventListener('click', ()=>{
+      const stream = renderer.domElement.captureStream(60);
+      const mime = getSupportedMime();
+      try { mediaRecorder = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: 8_000_000 }); }
+      catch { mediaRecorder = new MediaRecorder(stream); }
+      chunks = [];
+      mediaRecorder.ondataavailable = (e)=>{ if (e.data && e.data.size) chunks.push(e.data); };
+      mediaRecorder.onstop = ()=>{
+        const type = mediaRecorder.mimeType || 'video/webm';
+        const blob = new Blob(chunks, { type });
+        if (lastUrl) URL.revokeObjectURL(lastUrl);
+        lastUrl = URL.createObjectURL(blob);
+        const filename = `electrons_strings_${Date.now()}.${type.includes('mp4')?'mp4':'webm'}`;
+        const a = document.createElement('a'); a.href = lastUrl; a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),100);
+        dlLast.href = lastUrl; dlLast.download = filename; dlLast.style.display = 'inline-block';
+      };
+      mediaRecorder.start();
+      recStartBtn.disabled = true; recStopBtn.disabled = false;
+    });
+    recStopBtn.addEventListener('click', ()=>{
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      recStartBtn.disabled = false; recStopBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
