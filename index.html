@@ -1,61 +1,201 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>bsbjdjkbdka</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <title>Intuimation · Interactive Math Tools</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Meta -->
+  <meta name="description" content="Three interactive UIs: Thomson's Problem (2D/3D), Symmetric Vector Generator, and Game with Strings & Electrons." />
+
+  <style>
+    :root{
+      --bg: #0b0b0c;
+      --panel: #121317;
+      --text: #e9ecf1;
+      --muted: #b6c1d1;
+      --card: #151821;
+      --stroke: rgba(255,255,255,0.08);
+      --shadow: 0 6px 24px rgba(0,0,0,0.45);
+      --grad1: #3a8bff; /* blue */
+      --grad2: #00d1c7; /* teal */
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 70% -20%, rgba(0,209,199,0.12), transparent 60%),
+                  radial-gradient(800px 600px at -10% 110%, rgba(58,139,255,0.12), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .topbar{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:14px 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent);
+      border-bottom: 1px solid var(--stroke);
+      position: sticky;
+      top:0;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+    .logo{
+      height:40px; width:auto; display:block;
+    }
+    .brand{
+      font-size: 18px; letter-spacing: 0.2px; color: var(--text); font-weight: 500;
+    }
+
+    /* Hero */
+    .hero{
+      max-width: 980px; margin: 40px auto 0; padding: 0 20px; text-align: center;
+    }
+    .hero h1{
+      margin: 0 0 10px;
+      font-size: clamp(28px, 3.5vw, 42px);
+      font-weight: 600; /* gentle, not heavy bold */
+      background: linear-gradient(90deg, var(--grad1), var(--grad2));
+      -webkit-background-clip:text; background-clip:text; color: transparent;
+    }
+    .hero p{
+      margin: 0 auto;
+      max-width: 820px;
+      color: var(--muted);
+      font-size: clamp(15px, 1.6vw, 18px);
+    }
+
+    /* Section title */
+    .section-title{
+      text-align:center; margin: 34px 0 10px; color: var(--text); font-weight: 500;
+      opacity: 0.95;
+    }
+
+    /* Cards grid */
+    .grid{
+      display:flex; flex-wrap:wrap; gap:20px;
+      justify-content:center;
+      padding: 18px 20px 48px;
+      max-width: 1100px; margin: 0 auto;
+    }
+    .card{
+      width: min(340px, 90vw);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+    .card:hover{
+      transform: translateY(-3px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.55);
+      border-color: rgba(255,255,255,0.14);
+    }
+    .card h3{
+      margin: 0 0 10px; font-weight: 600; font-size: 18px; color: var(--text);
+    }
+    .card p{
+      margin: 0 0 16px; color: var(--muted); font-size: 15px;
+    }
+
+    /* Buttons as links */
+    .btn{
+      display: inline-flex; align-items:center; justify-content:center;
+      gap: 8px; padding: 10px 14px;
+      border-radius: 12px; text-decoration: none; font-size: 15px;
+      color: white;
+      background: linear-gradient(90deg, var(--grad1), var(--grad2));
+      border: 1px solid rgba(255,255,255,0.12);
+      transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
+      box-shadow: 0 6px 16px rgba(0, 209, 199, 0.15), 0 6px 16px rgba(58, 139, 255, 0.12);
+    }
+    .btn:hover{ transform: translateY(-1px); filter: brightness(1.06); }
+    .btn:focus-visible{
+      outline: 2px solid white; outline-offset: 2px;
+    }
+
+    /* Footer */
+    footer{
+      border-top: 1px solid var(--stroke);
+      padding: 18px 20px; color: var(--muted); text-align:center;
+    }
+
+    /* Motion preference */
+    @media (prefers-reduced-motion: reduce){
+      .card, .btn { transition: none !important; }
+    }
+  </style>
 </head>
-<body style="margin: 0; font-family: Arial, sans-serif; background-color: black; color: white;">
+<body>
 
-    <div style="background-color: black; padding: 10px 20px; box-shadow: 0 2px 4px rgba(255,255,255,0.1); display: flex; align-items: center;">
-        <img src="IntuimationLogo_ManimCE_v0.19.0.png" alt="Logo" style="height: 40px;">
-    </div>
+  <!-- Top bar -->
+  <header class="topbar" role="banner">
+    <img src="IntuimationLogo_ManimCE_v0.19.0.png" alt="Intuimation logo" class="logo" />
+    <div class="brand">Intuimation</div>
+  </header>
 
-    <div style="padding: 30px 20px; text-align: center; max-width: 800px; margin: 0 auto;">
-        <h1 style="color: white;">Welcome to My Website</h1>
-        <p style="font-size: 18px; color: white;">
-            This is a sample website created to showcase internal page navigation using flashcard-style buttons. 
-            Lorem ipsum, dolor sit amet consectetur adipisicing elit. Sequi aliquam vitae laborum itaque odio impedit? Eius, consequatur! Totam voluptatem alias iure nostrum qui reprehenderit quo est saepe culpa pariatur! Animi?
-            Qui, similique accusamus mollitia quasi inventore provident eos quis, quia asperiores velit deleniti, totam facilis ex facere quam cum? Consequuntur dolorem unde soluta praesentium aliquid rem molestias eos totam commodi?
-            Similique non expedita odit porro, nisi nostrum repellendus odio delectus necessitatibus rem fugiat debitis fugit, perspiciatis amet voluptas aspernatur eos! Minus suscipit quaerat error accusamus quo magni, exercitationem odit perspiciatis.
-            Saepe aut libero explicabo mollitia veritatis eius beatae dolor, consectetur enim rerum consequuntur sed qui odio nostrum nesciunt tempora adipisci a, repellat in. Animi sint aliquam minima voluptatibus? Quo, dicta?
-        </p>
-    </div>
+  <!-- Hero -->
+  <main class="hero" role="main">
+    <h1>Interactive Math & Physics Playground</h1>
+    <p>
+      Explore symmetry, energy minimization, and elegant structures through three interactive tools:
+      Thomson’s Problem in 2D/3D, a Symmetric Vector Generator, and a playful Game with Strings & Electrons.
+      Learn by experimenting — then take your insights back to Manim.
+    </p>
+  </main>
 
-    <h2 style="text-align: center; color: white;">Explore Our Pages</h2>
+  <h2 class="section-title">Explore the Tools</h2>
 
-    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px;">
+  <!-- Cards -->
+  <section class="grid" aria-label="Tool links">
+    <article class="card">
+      <h3>Game with Strings & Electrons</h3>
+      <p>
+        A visual toy for intuition: arrange “charges” on strings and watch how local moves
+        tend toward balance. Great for demos and classroom play.
+      </p>
+      <a class="btn" href="game_with_string_and_electrons.html" aria-label="Open Game with Strings and Electrons">
+        Open Tool
+      </a>
+    </article>
 
-        <div style="background-color: black; border-radius: 8px; box-shadow: 0 2px 5px rgba(255,255,255,0.1); width: 300px; padding: 20px; box-sizing: border-box; color: white;">
-            <h3 style="margin-top: 0; color: white;">1. About Us</h3>
-            <p>Learn more about our mission, vision, and the team behind the project.</p>
-            <button 
-                onclick="window.location.href='game_with_string_and_electrons.html'" 
-                style="background-color: blue; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">
-                Click Here
-            </button>
-        </div>
+    <article class="card">
+      <h3>Thomson’s Problem (2D / 3D)</h3>
+      <p>
+        Distribute points to minimize repulsion on a circle or sphere. Compare patterns,
+        energies, and the surprising role of symmetry across dimensions.
+      </p>
+      <a class="btn" href="thomsons_prblm_2d_and_3d.html" aria-label="Open Thomson’s Problem tool">
+        Open Tool
+      </a>
+    </article>
 
-        <div style="background-color: black; border-radius: 8px; box-shadow: 0 2px 5px rgba(255,255,255,0.1); width: 300px; padding: 20px; box-sizing: border-box; color: white;">
-            <h3 style="margin-top: 0; color: white;">2. Contact</h3>
-            <p>Need help or have questions? Reach out to us through our contact page.</p>
-            <button 
-                onclick="window.location.href='thomsons_prblm_2d_and_3d.html'" 
-                style="background-color: blue; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">
-                Click Here
-            </button>
-        </div>
+    <article class="card">
+      <h3>Symmetric Vector Generator</h3>
+      <p>
+        Generate evenly spaced vectors, inspect sums, and see how symmetry
+        drives cancellation — your bridge from pictures to proofs.
+      </p>
+      <a class="btn" href="vector_symmetry_generator.html" aria-label="Open Symmetric Vector Generator">
+        Open Tool
+      </a>
+    </article>
+  </section>
 
-        <div style="background-color: black; border-radius: 8px; box-shadow: 0 2px 5px rgba(255,255,255,0.1); width: 300px; padding: 20px; box-sizing: border-box; color: white;">
-            <h3 style="margin-top: 0; color: white;">3. Our Services</h3>
-            <p>Discover the range of services we offer to help you achieve your goals.</p>
-            <button 
-                onclick="window.location.href='vector_symmetry_generator.html'" 
-                style="background-color: blue; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">
-                Click Here
-            </button>
-        </div>
+  <footer>
+    © <span id="year"></span> Intuimation · Built for clarity, symmetry, and play.
+  </footer>
 
-    </div>
-
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
